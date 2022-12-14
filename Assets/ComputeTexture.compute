@@ -1,0 +1,62 @@
+struct Agent
+{
+    float2 position;
+    float2 normalizedDirection;
+    float velocity;
+};
+
+struct Trail
+{
+    float2 position;
+    int age;
+};
+
+RWStructuredBuffer<Agent> agents;
+
+RWTexture2D<float4> Result;
+RWTexture2D<float4> trailMap;
+float width;
+float height;
+int agentRadius;
+float4 color;
+
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel ClearTexture
+
+[numthreads(8,8,1)]
+void ClearTexture (uint3 id : SV_DispatchThreadID)
+{
+    Result[id.xy] = float4(0.0, 0.0, 0.0, 1.0);
+}
+
+
+#pragma kernel AddAgents
+
+[numthreads(10,1,1)]
+void AddAgents (uint3 id : SV_DispatchThreadID)
+{
+    Agent agent = agents[id.x];
+    const uint2 pos = agent.position.xy;
+    
+    for (int y=-agentRadius; y<=agentRadius; y++)
+    {
+        for (int x=-agentRadius; x<=agentRadius; x++)
+        {
+            if (x*x+y*y <= agentRadius*agentRadius)
+            {
+                const float2 finalPos = {pos[0] + x, pos[1] + y};
+                Result[finalPos] = color;
+            }
+        }
+    }
+}
+
+
+#pragma kernel CreateTrailMap
+
+[numthreads(8,8,1)]
+void CreateTrailMap (uint3 id : SV_DispatchThreadID)
+{
+    trailMap[id.xy] = float4(0.0, 0.0, 0.0, 0.0);
+}
+

@@ -1,0 +1,160 @@
+struct Agent
+{
+    float2 position;
+    float2 normalizedDirection;
+    float velocity;
+};
+
+struct DebugElement
+{
+    float2 evaluatedPosition;
+};
+
+RWStructuredBuffer<Agent> agents;
+AppendStructuredBuffer<DebugElement> debugs;
+RWTexture2D<float4> trailMap;
+float deltaTime;
+float width;
+float height;
+float decayRate;
+float blurrRatio;
+float agentTurnRatio;
+float agentFOV;
+float4 agentColor;
+
+#pragma kernel ComputeAgentsMovement
+
+[numthreads(10,1,1)]
+void ComputeAgentsMovement(uint3 id : SV_DispatchThreadID)
+{
+    // Get the current agent
+    Agent agent = agents[id.x];
+    
+    float2 senseDir = {0.0f, 0.0f};
+    
+    //Iterate through the neighbors of the agent
+    for (int offsetY = -3; offsetY <= 3; offsetY++)
+    {
+        for (int offsetX = -3; offsetX <= 3; offsetX++)
+        {
+            const int currentX = agent.position.x + offsetX;
+            const int currentY = agent.position.y + offsetY;
+            const float2 currentVector = {offsetX, offsetY};
+
+            // Prevent an error of normalization
+            if (length(currentVector) == 0 )
+            {
+                continue;
+            }
+
+            const float2 normalizedVector = normalize(currentVector);
+
+            // Allow to customize the agent Fov of its neighbors
+            if (dot(normalizedVector, agent.normalizedDirection) < agentFOV)
+            {
+                continue;
+            }
+
+            // Select only the neighbors in a circle around the agent
+            if (offsetX * offsetX + offsetY * offsetY > 3*3)
+            {
+                continue;
+            }
+
+            // Remove neighbors outside the borders
+            if (currentX >= width || currentX < 0)
+            {
+                continue;
+            }
+
+            if (currentY >= height || currentY < 0)
+            {
+                continue;
+            }
+
+            // Add the direction of the current neighbor from the origin agent position to the sensed direction weighted by the intensity of the trail 
+            const int2 currentPos = {currentX, currentY};
+            const float weight = trailMap[currentPos.xy].a;
+            senseDir += weight * normalizedVector;
+        }
+    }
+
+    if (length(senseDir) != 0 )
+    {
+        senseDir = normalize(senseDir);
+    }
+
+    // Blend the direction of the agent with the sensed direction
+    float2 newDirection = lerp(agent.normalizedDirection, senseDir, agentTurnRatio);
+
+    if (length(newDirection) != 0 )
+    {
+        newDirection = normalize(newDirection);
+    }
+    
+    agent.normalizedDirection = newDirection;
+
+    // Compute the new position of the agent
+    agent.position += agent.normalizedDirection * agent.velocity * deltaTime;
+
+
+    // Handle rebound against walls
+    if (agent.position.x > width)
+    {
+        agent.position.x = width;
+        agent.normalizedDirection.x = -agent.normalizedDirection.x;
+    }
+
+    if (agent.position.x < 0)
+    {
+        agent.position.x = 0;
+        agent.normalizedDirection.x = -agent.normalizedDirection.x;
+    }
+    
+    if (agent.position.y > height)
+    {
+        agent.position.y = height;
+        agent.normalizedDirection.y = -agent.normalizedDirection.y;
+    }
+
+    if (agent.position.y < 0)
+    {
+        agent.position.y = 0;
+        agent.normalizedDirection.y = -agent.normalizedDirection.y;
+    }
+    
+    agents[id.x] = agent;
+}
+
+#pragma kernel ComputeTrailDiffusion
+
+[numthreads(8,8,1)]
+void ComputeTrailDiffusion(uint3 id : SV_DispatchThreadID)
+{
+    // Get the alpha value of the neighbors and take the mean
+    float sum = 0;
+    for (int offsetX = -1; offsetX <= 1; offsetX ++) {
+        for (int offsetY = -1; offsetY <= 1; offsetY ++) {
+            int sampleX = min(width-1, max(0, id.x + offsetX));
+            int sampleY = min(height-1, max(0, id.y + offsetY));
+            sum += trailMap[int2(sampleX,sampleY)].a;
+        }
+    }
+    float mean = sum/9;
+
+    // Blend the blurr with the trailMap
+    float blurred = lerp(trailMap[id.xy].a, mean, blurrRatio);
+
+    // Apply the decayRate
+    float newAplha = max(0, blurred - decayRate * deltaTime);
+    trailMap[id.xy] = float4(agentColor.r, agentColor.g, agentColor.b, newAplha);
+}
+
+#pragma kernel ComputeTrailAddition
+
+[numthreads(10,1,1)]
+void ComputeTrailAddition(uint3 id : SV_DispatchThreadID)
+{
+    const Agent agent = agents[id.x];
+    trailMap[agent.position.xy] = agentColor;
+}
