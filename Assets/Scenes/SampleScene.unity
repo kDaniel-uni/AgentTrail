@@ -627,17 +627,17 @@ MonoBehaviour:
   renderTexture: {fileID: 0}
   displayShader: {fileID: 7200000, guid: 2e96ad8b9fb282644a92fea897e15c4c, type: 3}
   agentShader: {fileID: 7200000, guid: 1c7ba7e2978622244893a48680741493, type: 3}
-  numAgents: 100000
-  agentColor: {r: 0, g: 0.50179243, b: 1, a: 1}
+  numAgents: 75000
+  agentColor: {r: 1, g: 0.6841278, b: 0, a: 1}
   agentRadius: 1
   width: 2560
   height: 1440
   minAgentVelocity: 15
-  maxAgentVelocity: 30
-  decayRate: 0.17
-  blurrRatio: 0.58
-  agentFOV: 0.1
-  agentTurnRatio: 0.3
+  maxAgentVelocity: 40
+  decayRate: 0.21
+  blurrRatio: 0.22
+  agentFOV: -0.1
+  agentTurnRatio: 0.19
 --- !u!224 &2020065587
 RectTransform:
   m_ObjectHideFlags: 0
